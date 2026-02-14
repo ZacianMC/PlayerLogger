@@ -1,0 +1,37 @@
+prefix: "&8[&bPlayerLogger&8]&r "
+
+help.title: "&6PlayerLogger Commands:"
+help.stats.self: "&e/plog stats&7 - zeigt deine Spielzeit"
+help.stats.other: "&e/plog stats <player>&7 - zeigt Spielzeit von Spieler"
+help.top: "&e/plog top&7 - Top 10 Spielzeiten"
+help.reload: "&e/plog reload&7 - Config reload (Admin)"
+help.delete: "&e/plog delete <player>&7 - Daten löschen (Admin)"
+help.add: "&e/plog add <player> <time>&7 - Spielzeit addieren (Admin)"
+
+err.no_permission: "&cKeine Berechtigung (%perm%)."
+err.players_only: "&cNur Spieler können diesen Command ohne Namen nutzen."
+err.usage_delete: "&cUsage: /plog delete <player>"
+err.usage_add: "&cUsage: /plog add <player> <time>"
+err.time_hint: "&7Time: 90m, 2h, 3600s, 120000ms (ohne suffix = Minuten)"
+err.no_data: "&7Keine Daten für %player%."
+err.db: "&cDB-Fehler: %error%"
+err.invalid_time: "&cUngültige Zeit: %error%"
+err.time_positive: "&cZeit muss > 0 sein."
+err.uuid_not_found: "&cSpieler-UUID nicht gefunden."
+
+stats.title: "&6Stats: &e%player%"
+stats.online: "&7Online: %value%"
+stats.playtime: "&7Spielzeit: &b%time%"
+stats.session: "&7Session:  &b%time%"
+stats.first_seen: "&7First seen: &f%time%"
+stats.last_seen: "&7Last seen:  &f%time%"
+
+online.yes: "&aJa"
+online.no: "&cNein"
+
+top.title: "&6Top 10 Spielzeiten:"
+top.empty: "&7Keine Daten vorhanden."
+
+reload.ok: "&aPlugin erfolgreich neu geladen."
+add.ok: "&aHinzugefügt: &b%time%&a zu &e%player%"
+delete.ok: "&aGelöscht: players=%p%, sessions=%s%, command_logs=%c%"

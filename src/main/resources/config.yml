@@ -1,0 +1,26 @@
+database:
+  type: SQLITE # SQLITE oder MYSQL
+  sqlite-file: playerlogger.db
+
+  mysql:
+    host: localhost
+    port: 3306
+    database: minecraft
+    user: minecraft
+    password: ""
+
+language: de
+language-auto: false
+
+logging:
+  join-quit: true
+  commands: true
+
+# Optional: bestimmte Commands nicht loggen (z. B. /login, /register)
+command-filter:
+  enabled: true
+  # Wenn ein Command mit einem dieser Prefixe beginnt, wird er NICHT geloggt
+  deny-prefixes:
+    - "/login"
+    - "/register"
+    - "/changepassword"

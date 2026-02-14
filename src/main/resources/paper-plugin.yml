@@ -1,0 +1,6 @@
+name: PlayerLogger
+version: "1.0.0"
+main: de.Zacian.playerlogger.PlayerLogger
+api-version: "1.21"
+authors: ["Zacian"]
+description: "Logs join/quit, commands, playtime, and online status to a database."
