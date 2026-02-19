@@ -122,19 +122,50 @@ public final class PlayerLoggerCommand implements BasicCommand {
         }
 
         db.runAsync(() -> {
-            String sql = "SELECT name, total_playtime_ms FROM players ORDER BY total_playtime_ms DESC LIMIT 10";
+            long now = System.currentTimeMillis();
+            String sql =
+                    "SELECT p.uuid, p.name, p.total_playtime_ms, p.online, " +
+                            "(SELECT join_time FROM sessions s WHERE s.uuid = p.uuid AND s.leave_time IS NULL " +
+                            "ORDER BY s.join_time DESC LIMIT 1) AS join_time " +
+                            "FROM players p " +
+                            "ORDER BY (p.total_playtime_ms + CASE " +
+                            "WHEN p.online = 1 AND join_time IS NOT NULL THEN (? - join_time) ELSE 0 END) DESC " +
+                            "LIMIT 10";
             List<String> lines = new ArrayList<>();
 
-            try (PreparedStatement ps = db.getConnection().prepareStatement(sql);
-                 ResultSet rs = ps.executeQuery()) {
+            try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+                ps.setLong(1, now);
+                try (ResultSet rs = ps.executeQuery()) {
 
-                int rank = 1;
-                while (rs.next()) {
-                    String name = rs.getString("name");
-                    long ms = rs.getLong("total_playtime_ms");
-                    lines.add(ChatColor.GRAY + "[" + rank + "] " + ChatColor.YELLOW + name +
-                            ChatColor.GRAY + " - " + ChatColor.AQUA + formatDuration(ms));
-                    rank++;
+                    int rank = 1;
+                    while (rs.next()) {
+                        String uuidStr = rs.getString("uuid");
+                        String name = rs.getString("name");
+                        long baseMs = rs.getLong("total_playtime_ms");
+                        boolean online = rs.getInt("online") == 1;
+                        long joinTime = rs.getLong("join_time");
+                        boolean joinTimeNull = rs.wasNull();
+                        long liveMs = 0L;
+                        if (online) {
+                            if (!joinTimeNull) {
+                                liveMs = Math.max(0L, now - joinTime);
+                            } else if (uuidStr != null) {
+                                try {
+                                    UUID u = UUID.fromString(uuidStr);
+                                    Long start = plugin.getSessionStart(u);
+                                    if (start != null) {
+                                        liveMs = Math.max(0L, now - start);
+                                    }
+                                } catch (IllegalArgumentException ignored) {
+                                    // ignore invalid UUID
+                                }
+                            }
+                        }
+                        long ms = baseMs + liveMs;
+                        lines.add(ChatColor.GRAY + "[" + rank + "] " + ChatColor.YELLOW + name +
+                                ChatColor.GRAY + " - " + ChatColor.AQUA + formatDuration(ms));
+                        rank++;
+                    }
                 }
 
             } catch (SQLException e) {
