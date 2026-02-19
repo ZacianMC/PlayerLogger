@@ -5,12 +5,14 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.io.File;
 import java.sql.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class Database {
     private final JavaPlugin plugin;
     private final ExecutorService executor;
     private Connection connection;
     private String dbType;
+    private final AtomicBoolean shuttingDown = new AtomicBoolean(false);
 
     public Database(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -188,6 +190,10 @@ public final class Database {
     }
 
     public void runAsync(Runnable task) {
+        if (shuttingDown.get()) {
+            plugin.getLogger().warning("DB task rejected: shutdown in progress.");
+            return;
+        }
         executor.submit(() -> {
             try {
                 task.run();
@@ -198,10 +204,47 @@ public final class Database {
         });
     }
 
+    public void runSync(Runnable task) {
+        if (shuttingDown.get()) {
+            plugin.getLogger().warning("DB sync task rejected: shutdown in progress.");
+            return;
+        }
+        Future<?> f = executor.submit(() -> {
+            try {
+                task.run();
+            } catch (Throwable t) {
+                plugin.getLogger().severe("DB task failed: " + t.getMessage());
+                t.printStackTrace();
+            }
+        });
+        try {
+            f.get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (ExecutionException e) {
+            plugin.getLogger().severe("DB sync task failed: " + e.getMessage());
+        }
+    }
+
+    public void flush() {
+        if (shuttingDown.get()) return;
+        Future<?> f = executor.submit(() -> { });
+        try {
+            f.get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (ExecutionException e) {
+            plugin.getLogger().severe("DB flush failed: " + e.getMessage());
+        }
+    }
+
     public void shutdown() {
+        shuttingDown.set(true);
         executor.shutdown();
         try {
-            executor.awaitTermination(3, TimeUnit.SECONDS);
+            if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
+                plugin.getLogger().warning("DB shutdown taking longer than expected.");
+            }
         } catch (InterruptedException ignored) { }
 
         if (connection != null) {

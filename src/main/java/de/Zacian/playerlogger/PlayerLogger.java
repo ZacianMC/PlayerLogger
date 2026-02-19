@@ -55,9 +55,12 @@ public final class PlayerLogger extends JavaPlugin implements Listener {
     @Override
     public void onDisable() {
         // offene Sessions sauber schließen
-        for (Player p : Bukkit.getOnlinePlayers()) {
-            handleQuit(p.getUniqueId(), p.getName());
+        if (getConfig().getBoolean("logging.join-quit", true)) {
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                handleQuit(p.getUniqueId(), p.getName(), true);
+            }
         }
+        if (db != null) db.flush();
         if (db != null) db.shutdown();
         getLogger().info("PlayerLogger disabled.");
     }
@@ -94,19 +97,19 @@ public final class PlayerLogger extends JavaPlugin implements Listener {
             return;
         }
         Player p = e.getPlayer();
-        handleQuit(p.getUniqueId(), p.getName());
+        handleQuit(p.getUniqueId(), p.getName(), false);
     }
 
     public Long getSessionStart(UUID uuid) {
         return sessionStartMs.get(uuid);
     }
 
-    private void handleQuit(UUID uuid, String name) {
+    private void handleQuit(UUID uuid, String name, boolean sync) {
         long now = Instant.now().toEpochMilli();
         Long start = sessionStartMs.remove(uuid);
         long sessionMs = (start == null) ? 0L : Math.max(0L, now - start);
 
-        db.runAsync(() -> {
+        Runnable task = () -> {
             try (PreparedStatement ps = db.getConnection().prepareStatement(
                     "UPDATE players SET name=?, last_seen=?, online=0, total_playtime_ms = total_playtime_ms + ? WHERE uuid=?")) {
                 ps.setString(1, name);
@@ -119,8 +122,15 @@ public final class PlayerLogger extends JavaPlugin implements Listener {
             }
 
             // letzte offene Session schließen
-            try (PreparedStatement ps = db.getConnection().prepareStatement(
-                    "UPDATE sessions SET leave_time=?, playtime_ms=? WHERE uuid=? AND leave_time IS NULL")) {
+            final String sqliteSql =
+                    "UPDATE sessions SET leave_time=?, playtime_ms=? " +
+                            "WHERE id = (SELECT id FROM sessions WHERE uuid=? AND leave_time IS NULL ORDER BY join_time DESC LIMIT 1)";
+            final String mysqlSql =
+                    "UPDATE sessions SET leave_time=?, playtime_ms=? " +
+                            "WHERE id = (SELECT id FROM (SELECT id FROM sessions WHERE uuid=? AND leave_time IS NULL ORDER BY join_time DESC LIMIT 1) t)";
+            String sql = db.isMySql() ? mysqlSql : sqliteSql;
+
+            try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
                 ps.setLong(1, now);
                 ps.setLong(2, sessionMs);
                 ps.setString(3, uuid.toString());
@@ -128,10 +138,16 @@ public final class PlayerLogger extends JavaPlugin implements Listener {
             } catch (SQLException ex) {
                 throw new RuntimeException(ex);
             }
-        });
+        };
+
+        if (sync) {
+            db.runSync(task);
+        } else {
+            db.runAsync(task);
+        }
     }
 
-    @EventHandler
+    @EventHandler(ignoreCancelled = true)
     public void onCommand(PlayerCommandPreprocessEvent e) {
         if (!getConfig().getBoolean("logging.commands", true)) return;
 
